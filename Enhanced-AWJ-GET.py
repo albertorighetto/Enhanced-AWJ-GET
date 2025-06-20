@@ -26,20 +26,31 @@ class TCPGuiApp:
 
         # Connection Section
         self.connection_frame = tk.Frame(root, bg="#393939")
-        self.connection_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.connection_frame.grid(row=0, column=0, padx=5, pady=10, sticky="nsew")
 
         self.ip_entry = tk.Entry(self.connection_frame, bg="#282b40", fg="#ffffff", insertbackground="#282b40", font=("Arial", 14), justify="center")
         self.ip_entry.insert(0, "192.168.2.140")  # Default IP
-        self.ip_entry.pack(pady=(10, 10), padx=10)
+        self.ip_entry.pack(pady=(10, 10), padx=5)
 
         button_frame = tk.Frame(self.connection_frame, bg="#393939")
         button_frame.pack(pady=(0, 10))
 
         self.connect_button = tk.Button(button_frame, text="Connect", bg="#ffffff", fg="#000000", width=10, command=self.start_tcp_client)
+        self.connect_button.bind("<Button-1>", lambda e: self.connect_button.focus_set())
         self.connect_button.pack(side="left", padx=(0, 5))
 
         self.disconnect_button = tk.Button(button_frame, text="Disconnect", bg="#ffffff", fg="#000000", width=10, command=self.disconnect_tcp_client)
+        self.disconnect_button.bind("<Button-1>", lambda e: self.disconnect_button.focus_set())
         self.disconnect_button.pack(side="left", padx=(5, 0))
+
+        # Auto Scroll Checkbox
+        self.auto_scroll_var = tk.BooleanVar(value=True)
+        self.auto_scroll_checkbox = tk.Checkbutton(
+            self.connection_frame, text="Auto scroll messages", variable=self.auto_scroll_var,
+            bg="#393939", fg="#ffffff", activebackground="#196ebf", activeforeground="#B9C6AE",
+            selectcolor="#757083"
+        )
+        self.auto_scroll_checkbox.pack(pady=(10, 10), padx=5)
 
         # Filters Section
         self.filters_label = tk.Label(self.connection_frame, text="Filter out (remove)", fg="#ffffff", bg="#393939", font=("Arial", 16))
@@ -60,12 +71,12 @@ class TCPGuiApp:
                 selectcolor="#757083", command=lambda v=var, t=text: self.on_filter_change(v, t)
             ).pack(anchor="w", padx=20)
 
-        self.clear_button = tk.Button(
+        self.match_clear_button = tk.Button(
             self.connection_frame, text="Clear all messages", bg="#ffffff", fg="#000000",
-            command=lambda: self.clear_all_messages(),
+            command=self.clear_all_messages,
         )
-        self.clear_button.pack(pady=(10, 0))
-        self.clear_button.config(width=20)
+        self.match_clear_button.pack(pady=(10, 0))
+        self.match_clear_button.config(width=20)
 
         # Add note with clickable link
         self.note_label = tk.Label(
@@ -92,17 +103,19 @@ class TCPGuiApp:
         self.match_label.pack(side="left", padx=(0, 10))
 
         self.match_entry = tk.Entry(filter_line_frame, bg="#282b40", fg="#FFFFFF", insertbackground="#282b40")
+        self.match_entry.bind("<FocusIn>", lambda e: self.match_entry.configure(bg="#f5a936", fg="#000000"))
+        self.match_entry.bind("<FocusOut>", lambda e: self.match_entry.configure(bg="#282b40", fg="#FFFFFF"))
         self.match_entry.pack(side="left", fill="x", expand=True)
-        self.match_entry.bind("<KeyRelease>", self.apply_filter)
+        self.match_entry.bind("<KeyRelease>", self.refresh_filter)
 
-        self.clear_button = tk.Button(filter_line_frame, text="Clear", bg="#ffffff", fg="#000000", command=self.clear_filter_text)
-        self.clear_button.pack(side="left", padx=(10, 0))
+        self.match_clear_button = tk.Button(filter_line_frame, text="Clear", bg="#ffffff", fg="#000000", command=self.clear_match_filter)
+        self.match_clear_button.pack(side="left", padx=(10, 0))
 
         self.match_case_sensitive_var = tk.BooleanVar(value=False)
         self.match_case_sensitive_checkbox = tk.Checkbutton(
             filter_line_frame, text="Case Sensitive", variable=self.match_case_sensitive_var,
             bg="#393939", fg="#ffffff", activebackground="#196ebf", activeforeground="#B9C6AE",
-            selectcolor="#757083", command=self.apply_filter
+            selectcolor="#757083", command=self.refresh_filter
         )
         self.match_case_sensitive_checkbox.pack(side="left", padx=(10, 0))
 
@@ -114,17 +127,19 @@ class TCPGuiApp:
         self.exclude_label.pack(side="left", padx=(0, 10))
 
         self.exclude_entry = tk.Entry(exclude_line_frame, bg="#282b40", fg="#FFFFFF", insertbackground="#282b40")
+        self.exclude_entry.bind("<FocusIn>", lambda e: self.exclude_entry.configure(bg="#f5a936", fg="#000000"))
+        self.exclude_entry.bind("<FocusOut>", lambda e: self.exclude_entry.configure(bg="#282b40", fg="#FFFFFF"))
         self.exclude_entry.pack(side="left", fill="x", expand=True)
-        self.exclude_entry.bind("<KeyRelease>", self.apply_filter)
+        self.exclude_entry.bind("<KeyRelease>", self.refresh_filter)
 
-        self.exclude_clear_button = tk.Button(exclude_line_frame, text="Clear", bg="#ffffff", fg="#000000", command=lambda: self.exclude_entry.delete(0, tk.END))
+        self.exclude_clear_button = tk.Button(exclude_line_frame, text="Clear", bg="#ffffff", fg="#000000", command=self.clear_exclude_filter)
         self.exclude_clear_button.pack(side="left", padx=(10, 0))
 
         self.exclude_case_sensitive_var = tk.BooleanVar(value=False)
         self.exclude_case_sensitive_checkbox = tk.Checkbutton(
             exclude_line_frame, text="Case Sensitive", variable=self.exclude_case_sensitive_var,
             bg="#393939", fg="#ffffff", activebackground="#196ebf", activeforeground="#B9C6AE",
-            selectcolor="#757083", command=self.apply_filter
+            selectcolor="#757083", command=self.refresh_filter
         )
         self.exclude_case_sensitive_checkbox.pack(side="left", padx=(10, 0))
 
@@ -145,6 +160,9 @@ class TCPGuiApp:
         self.messages_area.pack(fill="both", expand=True, padx=2, pady=2)
 
         self.messages = []
+        self.filtered_messages = []
+        self.message_buffer = []
+        self.update_pending = False
         self.client_socket = None
 
     def open_github_link(self):
@@ -152,14 +170,19 @@ class TCPGuiApp:
 
     def clear_all_messages(self):
         self.messages = []
+        self.filtered_messages = []
         self.messages_area.config(state='normal')
         self.messages_area.delete(1.0, tk.END)
         self.messages_area.config(state='disabled')
         self.append_console("All messages cleared.")
     
-    def clear_filter_text(self):
+    def clear_match_filter(self):
         self.match_entry.delete(0, tk.END)
-        self.apply_filter()
+        self.refresh_filter()
+    
+    def clear_exclude_filter(self):
+        self.exclude_entry.delete(0, tk.END)
+        self.refresh_filter()
         
     def show_context_menu(self, event):
         try:
@@ -182,7 +205,7 @@ class TCPGuiApp:
         try:
             self.client_socket.connect((ip, TCP_PORT))
             self.append_console(f"Connected to {ip}:{TCP_PORT}")
-            self.connect_button.configure(bg="#90ee90") # Green color for success indication on Connect button
+            self.ip_entry.configure(bg="#90ee90", fg="#000000") # Green color for success
 
             # Send the initial message
             initial_message = '{"op":"replace","path":"Subscriptions", "value":["DeviceObject"]}' + chr(4)
@@ -191,14 +214,14 @@ class TCPGuiApp:
             threading.Thread(target=self.receive_tcp_messages, daemon=True).start()
         except Exception as e:
             self.append_console(f"Connection failed: {e}")
-            self.connect_button.configure(bg="#ff6565") # Red color for error indication on Connect button
+            self.ip_entry.configure(bg="#ff6565", fg="#000000") # Red color for error
 
     def disconnect_tcp_client(self):
         if self.client_socket:
             try:
                 self.client_socket.close()
                 self.append_console("Disconnected from server.")
-                self.connect_button.configure(bg="#ff6565") # Red color for error indication on Connect button
+                self.ip_entry.configure(bg="#ff6565", fg="#000000") # Red color for error
             except Exception as e:
                 self.append_console(f"Error disconnecting: {e}")
             finally:
@@ -217,29 +240,30 @@ class TCPGuiApp:
                 for message in messages:
                     message = message.strip()
                     if message:
-                        if self.filter_vars["Timer"].get() and "DeviceObject/$timer/@items/TIMER_" in message:
-                            continue
-                        elif self.filter_vars["Temperature"].get() and "/temperature/control/@props/" in message:
-                            continue
-                        elif self.filter_vars["Subscriptions"].get() and '{"path":"Subscriptions","value":' in message:
-                            continue
-                        else:
-                            self.messages.append(message)
-                            if self.match_entry.get().strip() or self.exclude_entry.get().strip():
-                                self.apply_filter()
-                            else:
-                                self.append_console(message)
-
-                                
+                        self.messages.append(message)
+                        if self.should_display_message(message, self.match_entry.get().strip(), self.exclude_entry.get().strip()):
+                            self.append_console(message)
         except Exception as e:
             self.append_console(f"Error receiving data: {e}")
-            self.connect_button.configure(bg="#ff6565") # Red color for error indication on Connect button
+            self.ip_entry.configure(bg="#ff6565", fg="#000000") # Red color for error indication on Connect button
 
     def append_console(self, text):
-        self.messages_area.config(state='normal')
-        self.messages_area.insert(tk.END, text + "\n")
-        self.messages_area.config(state='disabled')
-        self.messages_area.see(tk.END)
+            self.message_buffer.append(text + "\n")
+            if not self.update_pending:
+                self.update_pending = True
+                if self.message_buffer:
+                    self.root.after(100, self.update_console)
+    
+    def update_console(self):
+        if str(self.messages_area.cget('state')) != 'normal':
+            self.messages_area.config(state='normal')
+        self.messages_area.insert(tk.END, ''.join(self.message_buffer))
+        self.message_buffer.clear()
+        if str(self.messages_area.cget('state')) != 'disabled':
+            self.messages_area.config(state='disabled')
+        if self.auto_scroll_var.get():
+            self.messages_area.see(tk.END)
+        self.update_pending = False
 
     def should_display_message(self, message, match_text, exclude_text):
         if self.filter_vars["Timer"].get() and "DeviceObject/$timer/@items/TIMER_" in message:
@@ -262,7 +286,7 @@ class TCPGuiApp:
                 return True
         return False
 
-    def apply_filter(self, event=None):
+    def refresh_filter(self, event=None):
         match_text = self.match_entry.get()
         exclude_text = self.exclude_entry.get()
 
@@ -272,17 +296,14 @@ class TCPGuiApp:
         # Apply the filter to the messages
         for message in self.messages:
             if self.should_display_message(message, match_text, exclude_text):
-                self.messages_area.insert(tk.END, message + "\n")
-
-        self.messages_area.config(state='disabled')
-        self.messages_area.see(tk.END)
+                self.append_console(message)
     
     def on_filter_change(self, var, text):
-        if var.get():
-            self.append_console(f"Filtering out: {text}")
-        else:
-            self.append_console(f"Not filtering out: {text}")
-        self.apply_filter()
+        #if var.get():
+        #    self.append_console(f"Filtering out: {text}")
+        #else:
+        #    self.append_console(f"Not filtering out: {text}")
+        self.refresh_filter()
 
 # Run the GUI application
 if __name__ == "__main__":
