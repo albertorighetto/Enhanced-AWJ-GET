@@ -11,7 +11,7 @@ TCP_PORT = 10606
 class TCPGuiApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Enhanced AWJ-GET - v1.1")
+        self.root.title("Enhanced AWJ-GET - v1.1.1")
         self.root.geometry("1300x560")
         self.root.configure(bg="#393939")
         # Base64 encoded image data
@@ -86,7 +86,7 @@ class TCPGuiApp:
             "Source code on GitHub at\n" \
             "https://github.com/albertorighetto/enhanced-awj-get\n" \
             "\n" \
-            "v1.1\n" \
+            "v1.1.1\n" \
             "\n" \
             "This software is not affiliated with,\n" \
             "endorsed by, or supported by Analog Way",
@@ -282,7 +282,7 @@ class TCPGuiApp:
             return False
         if self.filter_vars["xUpdate"].get() and '@props/xUpdate","value"' in message:
             return False
-        if self.filter_vars["xRequest"].get() and '"xRequest"' in message:
+        if self.filter_vars["xRequest"].get() and '@props/xRequest","value"' in message:
             return False
         if self.match_case_sensitive_var.get():
             if match_text in message and (not exclude_text or 
