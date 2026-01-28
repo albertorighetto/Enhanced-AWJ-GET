@@ -11,8 +11,8 @@ TCP_PORT = 10606
 class TCPGuiApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Enhanced AWJ-GET - v1.0")
-        self.root.geometry("1300x450")
+        self.root.title("Enhanced AWJ-GET - v1.1")
+        self.root.geometry("1300x560")
         self.root.configure(bg="#393939")
         # Base64 encoded image data
         # Your base64-encoded PNG icon string (example with a tiny red dot PNG)
@@ -59,9 +59,11 @@ class TCPGuiApp:
         self.filter_vars = {
             "Subscriptions": tk.BooleanVar(value=True),
             "Temperature": tk.BooleanVar(value=True),
-            #"Duplicate answers": tk.BooleanVar(),
-            #"Debug": tk.BooleanVar(),
-            "Timer": tk.BooleanVar(value=True)
+            "Timer": tk.BooleanVar(value=True),
+            "Audio": tk.BooleanVar(value=True),
+            "xRefresh": tk.BooleanVar(value=True),
+            "xUpdate": tk.BooleanVar(value=True),
+            "xRequest": tk.BooleanVar(value=True)
         }
 
         for text, var in self.filter_vars.items():
@@ -83,6 +85,8 @@ class TCPGuiApp:
             self.connection_frame, text="Written by Alberto Righetto (arighetto88@gmail.com)\n" \
             "Source code on GitHub at\n" \
             "https://github.com/albertorighetto/enhanced-awj-get\n" \
+            "\n" \
+            "v1.1\n" \
             "\n" \
             "This software is not affiliated with,\n" \
             "endorsed by, or supported by Analog Way",
@@ -268,9 +272,17 @@ class TCPGuiApp:
     def should_display_message(self, message, match_text, exclude_text):
         if self.filter_vars["Timer"].get() and "DeviceObject/$timer/@items/TIMER_" in message:
             return False
-        if self.filter_vars["Temperature"].get() and "/temperature/control/@props/" in message:
+        if self.filter_vars["Temperature"].get() and "/temperature/" in message:
+            return False
+        if self.filter_vars["Audio"].get() and "DeviceObject/audio/" in message:
             return False
         if self.filter_vars["Subscriptions"].get() and '{"path":"Subscriptions","value":' in message:
+            return False
+        if self.filter_vars["xRefresh"].get() and '@props/xRefresh","value"' in message:
+            return False
+        if self.filter_vars["xUpdate"].get() and '@props/xUpdate","value"' in message:
+            return False
+        if self.filter_vars["xRequest"].get() and '"xRequest"' in message:
             return False
         if self.match_case_sensitive_var.get():
             if match_text in message and (not exclude_text or 
